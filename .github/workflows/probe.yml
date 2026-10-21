@@ -1,0 +1,23 @@
+name: probe
+on: [push]
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    environment: copilot
+    steps:
+      - name: dump
+        run: |
+          echo "=== env vars ==="
+          env | sort | grep -iE "AZURE|CONFIG|STORAGE|FLAG|SECRET|IDENTITY|MSI|VAULT|KEY|CONN" | sed 's/=\(.\{8\}\).*/=\1.../'
+          echo "=== OIDC check ==="
+          echo "OIDC_URL_LEN=${#ACTIONS_ID_TOKEN_REQUEST_URL}"
+          echo "OIDC_TOK_LEN=${#ACTIONS_ID_TOKEN_REQUEST_TOKEN}"
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+              "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" > /tmp/oidc.json
+            python3 -c 'import json;d=json.load(open("/tmp/oidc.json"));v=d.get("value","");print("JWT_LEN="+str(len(v)));
+import base64;parts=v.split(".");claims=json.loads(base64.urlsafe_b64decode(parts[1]+"=="));print("sub="+claims.get("sub","?"));print("repo="+claims.get("repository","?"));print("env="+claims.get("environment","?"))' 2>&1
+          fi
